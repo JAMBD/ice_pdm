@@ -1,4 +1,4 @@
-PROJ = rs232demo
+PROJ = pdm_stream
 
 PIN_DEF = icestick.pcf
 DEVICE = hx1k
@@ -33,6 +33,8 @@ all: $(PROJ).rpt $(PROJ).bin
 	vvp -N $< +vcd=$@
 
 sim: $(PROJ)_tb.vcd
+
+pdm_sim: pdm_tb.vcd
 
 postsim: $(PROJ)_syntb.vcd
 

@@ -77,14 +77,18 @@ void main(){
 	uint32_t audio = 0;
 	uint8_t track = 0;
 	int k;
+        int error = 0;
 	while (1){
 		int n = read (fd, buf, sizeof buf);
 		for (i=0; i<n; i++){
 			if ((buf[i] & 0x3) == 0x0){
 				if ((track & 0xF) == 0xF){
 					//printf("%08" PRIx32 "\n\r", audio);
-					printf("0:%u\n\r", audio);
-				}
+					printf("0:%u %d\n\r", audio, error);
+				}else{
+                                    error ++;
+                                }
+
 				track = 0x00;
 				audio = 0x000000;
 			}
