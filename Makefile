@@ -3,9 +3,11 @@ PROJ = pdm_stream
 PIN_DEF = icestick.pcf
 DEVICE = hx1k
 
+PROJECT_FILES = circular_buffer.v comms.v pll.v pdm.v rs232.v
+
 all: $(PROJ).rpt $(PROJ).bin
 
-%.json: %.v pll.v
+%.json: %.v $(PROJECT_FILES)
 	yosys -p 'synth_ice40 -top top -json $@' $^
 
 %.asc: %.json
@@ -17,7 +19,7 @@ all: $(PROJ).rpt $(PROJ).bin
 %.rpt: %.asc
 	icetime -d $(DEVICE) -mtr $@ $<
 
-%_tb: %_tb.v %.v pll.v
+%_tb: %_tb.v %.v $(PROJECT_FILES)
 	iverilog -o $@ $^ `yosys-config --datdir/ice40/cells_sim.v`
 
 %_tb.vcd: %_tb
@@ -48,7 +50,7 @@ sudo-prog: $(PROJ).bin
 	sudo iceprog $<
 
 clean:
-	rm -f $(PROJ).json $(PROJ).asc $(PROJ).rpt $(PROJ).bin
+	rm -f $(PROJ).json $(PROJ).asc $(PROJ).rpt $(PROJ).bin *.vcd *_tb
 
 .SECONDARY:
 .PHONY: all prog clean
