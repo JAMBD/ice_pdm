@@ -10,8 +10,8 @@ module rs232_testbench;
         reg tx_en = 1;
 	wire TX;
         wire [7:0] rx_data;
-        wire tx_data_clk;
-        wire rx_data_clk;
+        wire tx_data_stb;
+        wire rx_data_stb;
 
 	rs232_recv #(
 		.HALF_PERIOD(PERIOD / 2)
@@ -19,7 +19,7 @@ module rs232_testbench;
 		.clk (clk ),
 		.rx (RX  ),
                 .data_byte (rx_data),
-                .data_clk (rx_data_clk)
+                .data_stb (rx_data_stb)
 	);
 
 	rs232_send #(
@@ -29,7 +29,7 @@ module rs232_testbench;
                 .data_byte (tx_data),
                 .en (tx_en),
 		.tx (TX  ),
-                .data_clk (tx_data_clk)
+                .data_stb (tx_data_stb)
 	);
 
 	task send_byte;
@@ -59,13 +59,13 @@ module rs232_testbench;
 
 		repeat (10 * PERIOD) @(posedge clk);
                 tx_en = 1'b1;
-                @(posedge tx_data_clk);
+                @(posedge tx_data_stb);
                 tx_data = 8'hFF;
-                @(posedge tx_data_clk);
+                @(posedge tx_data_stb);
                 tx_data = 8'hAA;
-                @(posedge tx_data_clk);
+                @(posedge tx_data_stb);
                 tx_data = 8'hA5;
-                @(negedge tx_data_clk);
+                @(negedge tx_data_stb);
                 tx_en = 1'b0;
 
 		send_byte("1");

@@ -4,6 +4,7 @@ module comms_testbench;
 	always #5 clk = (clk === 1'b0);
 
 	reg RX = 1;
+        reg rx_hold = 1'b0;
 	wire TX;
 
 	task send_byte;
@@ -28,6 +29,7 @@ module comms_testbench;
 	) loopback (
 		.clk (clk),
                 .rx (RX),
+                .rx_hold (rx_hold),
 		.tx (TX)
 	);
 
@@ -43,9 +45,13 @@ module comms_testbench;
 
 		send_byte("1");
 		send_byte("2");
+                rx_hold = 1'b1;
+		repeat (10 * PERIOD) @(posedge clk);
 		send_byte("3");
 		send_byte("4");
 		send_byte("5");
+		repeat (90 * PERIOD) @(posedge clk);
+		send_byte("6");
 
 		repeat (60 * PERIOD) @(posedge clk);
 

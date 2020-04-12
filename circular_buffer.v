@@ -1,16 +1,18 @@
 module circular_buffer(
     input w_clk,
+    input w_en,
     input r_clk,
+    input r_en,
     input [7:0] w_data,
     output [7:0] r_data,
-    output [8:0] capacity);
+    output has_data);
 
     wire [7:0] extra_read;
 
     reg [8:0] tail = 9'h000;
-    reg [8:0] head = 9'h001;
+    reg [8:0] head = 9'h000;
+    assign has_data = tail != head;
 
-    assign capacity = head - tail;
     SB_RAM40_4K #(
         .WRITE_MODE(1),
         .READ_MODE(1)
@@ -25,11 +27,11 @@ module circular_buffer(
                 extra_read[0], r_data[0]}),
         .RADDR({2'b0, tail}),
         .RCLK(r_clk),
-        .RCLKE(1'b1),
+        .RCLKE(r_en),
         .RE(1'b1),
         .WADDR({2'b0, head}),
         .WCLK(w_clk),
-        .WCLKE(1'b1),
+        .WCLKE(w_en),
         .WDATA({1'b0, w_data[7],
                 1'b0, w_data[6],
                 1'b0, w_data[5],
@@ -58,11 +60,15 @@ module circular_buffer(
     defparam ram_block.INIT_F = 256'h0;
 
 
-    always @(negedge r_clk) begin
-        tail <= tail + 9'h001;
+    always @(posedge r_clk) begin
+        if (r_en) begin
+            tail <= tail + 9'h001;
+        end
     end
 
     always @(posedge w_clk) begin
-        head <= head + 9'h001;
+        if (w_en) begin
+            head <= head + 9'h001;
+        end
     end
 endmodule

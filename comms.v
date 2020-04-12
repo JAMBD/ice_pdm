@@ -3,39 +3,39 @@ module rs232_loopback #(
 ) (
     input clk,
     input rx,
-    output tx
+    input rx_hold,
+    output tx,
+    output reg diag
 );
 
-        wire rx_clk;
+        wire rx_stb;
         wire [7:0] rx_data;
-        wire tx_clk;
+        wire tx_stb;
         wire [7:0] tx_data;
-        wire [8:0] rx_capacity;
-        wire [8:0] tx_capacity;
+        wire rx_has_data;
+        wire tx_has_data;
         reg [7:0] sync_tx_data;
         wire [7:0] sync_rx_data;
-        reg has_input_data = 1'b0;
-        reg know_there_is_input_data = 1'b0;
-        reg has_processed_data = 1'b0;
-
-        always @(*) begin
-            has_input_data = (|rx_capacity) & know_there_is_input_data;
-        end
+        reg [7:0] pipe_tracker = 8'b0;
 
         circular_buffer rx_buffer(
-            .w_clk(rx_clk),
-            .r_clk(clk & has_input_data),
+            .w_clk(clk),
+            .w_en(rx_stb),
+            .r_clk(clk),
+            .r_en(rx_has_data & rx_hold),
             .w_data(rx_data),
             .r_data(sync_rx_data),
-            .capacity(rx_capacity)
+            .has_data(rx_has_data)
         );
 
         circular_buffer tx_buffer(
-            .w_clk(!clk & has_processed_data),
-            .r_clk(tx_clk),
+            .w_clk(clk),
+            .w_en(pipe_tracker[2]),
+            .r_clk(clk),
+            .r_en(tx_stb),
             .w_data(sync_tx_data),
             .r_data(tx_data),
-            .capacity(tx_capacity)
+            .has_data(tx_has_data)
         );
 
         rs232_recv #(
@@ -44,7 +44,7 @@ module rs232_loopback #(
             .clk (clk),
             .rx (rx),
             .data_byte (rx_data),
-            .data_clk (rx_clk)
+            .data_stb (rx_stb)
         );
 
         rs232_send #(
@@ -52,19 +52,19 @@ module rs232_loopback #(
         ) send (
             .clk (clk),
             .data_byte (tx_data),
-            .en(|tx_capacity),
+            .en(tx_has_data),
             .tx (tx),
-            .data_clk(tx_clk)
+            .data_stb(tx_stb)
         );
 
         always @(posedge clk) begin
-            know_there_is_input_data <= |rx_capacity;
-            if (know_there_is_input_data) begin
-                sync_tx_data <= sync_rx_data + 1;
-                has_processed_data <= 1'b1;
-            end else begin
-                has_processed_data <= 1'b0;
-            end
+            sync_tx_data <= sync_rx_data + 1;
+            diag <= diag ^ tx_stb;
         end
+
+        always @(negedge clk) begin
+            pipe_tracker <= {pipe_tracker[6:0], rx_has_data & rx_hold};
+        end
+
 
 endmodule

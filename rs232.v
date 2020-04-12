@@ -4,18 +4,20 @@ module rs232_recv #(
     input  clk,
     input  rx,
     output reg [7:0] data_byte,
-    output reg data_clk
+    output reg data_stb = 1'b0
 );
-    // data_clk : pose edge indicates there is a new byte.
     reg [7:0] buffer;
 
     reg [$clog2(3*HALF_PERIOD):0] cycle_cnt;
     reg [3:0] bit_cnt = 0;
     reg recv = 0;
+    reg data_ready;
 
     always @(posedge clk) begin
+        cycle_cnt <= cycle_cnt + 1;
+        data_stb <= data_ready;
+        data_ready <= 1'b0;
         if (!recv) begin
-            data_clk <= 1;
             if (!rx) begin
                 cycle_cnt <= HALF_PERIOD;
                 bit_cnt <= 0;
@@ -23,17 +25,15 @@ module rs232_recv #(
             end
         end else begin
             if (cycle_cnt == 2*HALF_PERIOD) begin
-                data_clk <= 0;
                 cycle_cnt <= 0;
                 bit_cnt <= bit_cnt + 1;
                 if (bit_cnt == 9) begin
+                    data_ready <= 1'b1;
                     data_byte <= buffer;
                     recv <= 0;
                 end else begin
                     buffer <= {rx, buffer[7:1]};
                 end
-            end else begin
-                cycle_cnt <= cycle_cnt + 1;
             end
         end
     end
@@ -47,30 +47,29 @@ module rs232_send #(
     input [7:0] data_byte,
     input en,
     output tx,
-    output reg data_clk = 1'b0
+    output reg data_stb = 1'b0
 );
     reg [$clog2(PERIOD):0] cycle_cnt = 0;
     reg [4:0] bit_cnt = 0;
 
     reg data_bit;
     reg [7:0] data_buffer;
+
     always @(posedge clk) begin
+        data_stb <= 0;
         cycle_cnt <= cycle_cnt + 1;
         if (cycle_cnt == PERIOD-1) begin
             cycle_cnt <= 0;
             bit_cnt <= bit_cnt + 1;
             if (bit_cnt == 9) begin
                 if (en) begin
-                    data_clk <= 1;
+                    data_stb <= 1;
                 end else begin
                     bit_cnt <= 9;
                 end
             end
-            if (bit_cnt == 0) begin
-                data_clk <= 0;
-                data_buffer <= data_byte;
-            end
             if (bit_cnt == 10) begin
+                data_buffer <= data_byte;
                 bit_cnt <= 0;
             end
         end
