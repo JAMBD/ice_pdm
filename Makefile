@@ -45,12 +45,19 @@ time: $(PROJ).asc
 prog: $(PROJ).bin
 	iceprog $<
 
+prog_loopback: loopback.bin
+	iceprog $<
+
 sudo-prog: $(PROJ).bin
 	@echo 'Executing prog as root!!!'
 	sudo iceprog $<
 
 clean:
 	rm -f $(PROJ).json $(PROJ).asc $(PROJ).rpt $(PROJ).bin *.vcd *_tb
+
+logger:
+	gcc -pthread -Os  -o log log.c
+	gcc -pthread -Os  -o pdm_in pdm_in.c
 
 .SECONDARY:
 .PHONY: all prog clean

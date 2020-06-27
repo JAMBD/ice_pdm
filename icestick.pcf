@@ -9,5 +9,8 @@ set_io LED3 97
 set_io LED4 96
 set_io LED5 95
 set_io PDM_CLK 81
-set_io PDM_DATA_1 91
+set_io PDM_DATA[0] 91
+set_io PDM_DATA[1] 90
+set_io PDM_DATA[2] 88
+set_io PDM_DATA[3] 87
 set_io clk 21

@@ -1,0 +1,12 @@
+*.vcd
+*.bin
+*.json
+*.swp
+*.raw
+*_tb
+*.asc
+*.rpt
+
+ft232_test
+pdm_in
+log

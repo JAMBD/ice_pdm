@@ -1,99 +1,158 @@
-#include <errno.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <fcntl.h> 
-#include <string.h>
 #include <termios.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
-#include <inttypes.h>
+#include <fcntl.h>
+#include <sys/signal.h>
+#include <sys/types.h>
+#include <errno.h>
+#include <pthread.h>
+#include <time.h>
 
-int set_interface_attribs (int fd, int speed, int parity)
-{
-        struct termios tty;
-        if (tcgetattr (fd, &tty) != 0)
-        {
-                printf ("error %d from tcgetattr", errno);
-                return -1;
-        }
+#define BAUDRATE B4000000
+#define SERIAL_DEVICE "/dev/ttyUSB1"
 
-        cfsetospeed (&tty, speed);
-        cfsetispeed (&tty, speed);
+void serial_in (int status);
 
-        tty.c_cflag = (tty.c_cflag & ~CSIZE) | CS8;
-        tty.c_iflag &= ~IGNBRK;
-        tty.c_lflag = 0;
-        tty.c_oflag = 0;
-        tty.c_cc[VMIN]  = 0;
-        tty.c_cc[VTIME] = 5;
+u_int32_t send_cnt = 0;
+u_int8_t run = 1;
 
-        tty.c_iflag &= ~(IXON | IXOFF | IXANY);
-
-        tty.c_cflag |= (CLOCAL | CREAD);
-        tty.c_cflag &= ~(PARENB | PARODD);
-        tty.c_cflag |= parity;
-        tty.c_cflag &= ~CSTOPB;
-        tty.c_cflag &= ~CRTSCTS;
-
-        if (tcsetattr (fd, TCSANOW, &tty) != 0)
-        {
-                printf ("error %d from tcsetattr", errno);
-                return -1;
-        }
-        return 0;
+void delay(){
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 650 * 1000;
+    nanosleep(&ts, &ts);
 }
 
-void set_blocking (int fd, int should_block)
-{
-        struct termios tty;
-        memset (&tty, 0, sizeof tty);
-        if (tcgetattr (fd, &tty) != 0)
-        {
-                printf ("error %x from tggetattr", errno);
-                return;
+void *sendThread(void *parameters){
+    int fd;
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    fd = *((int*)parameters);
+    u_int8_t data[256];
+    for (u_int16_t i=0; i<256; i++){
+        data[i] = i;
+    }
+    for (int i=0; i<10000; i++){
+        delay();
+        int bytes_writen = 0;
+        for (u_int8_t * to_send = data; to_send < data + 256; to_send += bytes_writen){
+            int desired_send = data + 256 - to_send;
+            bytes_writen = write(fd, to_send, desired_send);
+            send_cnt += bytes_writen;
+            if (bytes_writen < desired_send){
+                tcflush(fd, TCOFLUSH);
+            }
         }
-
-        tty.c_cc[VMIN]  = should_block ? 1 : 0;
-        tty.c_cc[VTIME] = 5;
-
-        if (tcsetattr (fd, TCSANOW, &tty) != 0)
-                printf ("error %d setting term attributes", errno);
+    }
+    tcflush(fd, TCOFLUSH);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double duration = (end.tv_sec - start.tv_sec);
+    duration += (end.tv_nsec - start.tv_nsec) / 1000000000.0;
+    printf("took %fs\n", duration);
+    printf("written %d bytes\n", send_cnt);
+    printf("transfer out rate %fMB/s\n", send_cnt / duration / 1000000.0);
+    run = 0;
+    pthread_exit(0);
 }
 
+void *readThread(void *parameters){
+    int fd;
+    u_int8_t data[256];
+    struct timespec start, end;
+    u_int32_t recv_cnt = 0;
+    u_int32_t error_cnt = 0;
+    u_int8_t i_e = 0;
+    fd = *((int*)parameters);
+    while (run){
+        int bytes_read = 1;
+        while (bytes_read > 0 && run){
+            bytes_read = read(fd, data, 256);
+            if (recv_cnt == 0 && bytes_read > 0){
+                clock_gettime(CLOCK_MONOTONIC, &start);
+            }
+            for (int j=0; j < bytes_read; j++){
+                if (data[j] != i_e) {
+                    error_cnt += 1;
+                    //printf("error byte 0x%02x should be 0x%02x\n", data[j], i_e);
+                    i_e = data[j];
+                }
+                i_e ++;
+            }
+            recv_cnt += bytes_read;
+        }
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    double duration = (end.tv_sec - start.tv_sec);
+    duration += (end.tv_nsec - start.tv_nsec) / 1000000000.0;
+    printf("data loss %.2f%% error %.2f%%\n", 100.0 - 100.0 * ((double) recv_cnt) / send_cnt, 100.0 * error_cnt / send_cnt);
+    printf("received error count %d\n", error_cnt);
+    printf("received %d bytes in %fs. %fMB/s\n", recv_cnt, duration, recv_cnt / duration / 1000000.0);
+    pthread_exit(0);
+}
 
-void main(){
-	char *portname = "/dev/ttyUSB1";
-	int fd = open (portname, O_RDWR | O_NOCTTY | O_SYNC);
-	if (fd < 0)
-	{
-		printf ("error %d opening %s: %s", errno, portname, strerror (errno));
-		return;
-	}
+void main()
+{
+    int fd, res;
+    struct termios tty;
+    struct sigaction saio;
 
-	set_interface_attribs (fd, B4000000, 0);
-	set_blocking (fd, 0);
+    fd = open(SERIAL_DEVICE, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (fd <0) {
+        perror(SERIAL_DEVICE);
+        exit(-1);
+    }
 
-	char buf [12];
-	int i;
-	uint32_t audio = 0;
-	uint8_t track = 0;
-	int k;
-        int error = 0;
-	while (1){
-		int n = read (fd, buf, sizeof buf);
-		for (i=0; i<n; i++){
-			if ((buf[i] & 0x3) == 0x0){
-				if ((track & 0xF) == 0xF){
-					//printf("%08" PRIx32 "\n\r", audio);
-					printf("0:%u %d\n\r", audio, error);
-				}else{
-                                    error ++;
-                                }
+    // Setup interupt handlers.
+    sigset_t block_mask;
+    saio.sa_handler = serial_in;
+    saio.sa_mask = block_mask;
+    saio.sa_flags = 0;
+    saio.sa_restorer = NULL;
+    sigaction(SIGIO, &saio, NULL);
 
-				track = 0x00;
-				audio = 0x000000;
-			}
-			track |= 1 << (buf[i] & 0x3);
-			audio |= ((uint32_t)(buf[i] >> 2) & 0x3F) << ((buf[i] & 0x3) * 6);
-		}
-	}
+    // Allow process to recieve signals.
+    fcntl(fd, F_SETOWN, getpid());
+    fcntl(fd, F_SETFL, FASYNC);
+
+    // Set up serial port.
+    if (tcgetattr (fd, &tty) != 0)
+    {
+        printf ("error %d from tcgetattr", errno);
+    }
+
+    cfsetospeed (&tty, BAUDRATE);
+    cfsetispeed (&tty, BAUDRATE);
+
+    cfmakeraw(&tty);
+
+    tty.c_cc[VMIN]  = 0;
+    tty.c_cc[VTIME] = 5;
+
+    // 8N1
+    tty.c_cflag &= ~(PARENB | PARODD | CSTOPB);
+
+    if (tcsetattr (fd, TCSANOW, &tty) != 0)
+    {
+        printf ("error %d from tcsetattr", errno);
+    }   
+    
+    delay();
+    tcflush(fd, TCIFLUSH);
+    delay();
+
+    pthread_t readThread_t, sendThread_t;
+
+    pthread_create(&readThread_t, NULL, (void *)readThread, (void *)&fd);
+    pthread_create(&sendThread_t, NULL, (void *)sendThread, (void *)&fd);
+
+    pthread_join(readThread_t, NULL);   
+    pthread_join(sendThread_t, NULL);
+
+    close(fd);
+}
+
+void serial_in (int status)
+{
+    //printf("received SIGIO signal.\n");
 }
