@@ -26,6 +26,7 @@ module pdm_recv_testbench;
     wire sum_out;
     wire p1_clk;
     wire [3:0] sum_accum;
+    wire rnd_data;
 
     wire data_clock;
 
@@ -45,6 +46,13 @@ module pdm_recv_testbench;
             .right(right_align),
             .data_valid(p0_clk)
     );
+
+    pdm_rnd rng(
+            .clk (clk),
+            .pdm_sample(pdm_smp_clk),
+            .rnd_data(rnd_data)
+    );
+
 
     sum_pdm adder(
         .clk (clk),

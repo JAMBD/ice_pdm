@@ -51,6 +51,7 @@ module top (
         wire pdm_1_align_valid;
         wire pdm_sum_valid;
         wire pdm_diff_valid;
+        wire pdm_rnd_valid;
         wire [4:0] ch0;
         wire [4:0] ch1;
         wire [4:0] ch2;
@@ -63,6 +64,7 @@ module top (
         wire pdm_ch3;
         wire pdm_sum;
         wire pdm_diff;
+        wire pdm_rnd;
         wire ch0_sample;
         wire ch1_sample;
         wire ch2_sample;
@@ -74,6 +76,13 @@ module top (
             .mode (mode),
             .pdm_clk (PDM_CLK),
             .pdm_sample_valid (pdm_sample)
+        );
+
+        pdm_rnd rng(
+                .clk (pll_clk),
+                .pdm_sample (pdm_sample),
+                .rnd_data (pdm_rnd),
+                .data_valid(pdm_rnd_valid)
         );
 
         pdm_side_sync pdm_0_synced(
@@ -122,8 +131,8 @@ module top (
             .ACCUM_BITS(5)
         ) ch2_accum (
                 .clk (pll_clk),
-                .sample_valid (pdm_1_align_valid),
-                .data(pdm_ch2),
+                .sample_valid (pdm_rnd_valid),
+                .data(pdm_rnd),
                 .sync(sync),
                 .accum_data(ch2),
                 .accum_clk(ch2_sample)
@@ -193,9 +202,9 @@ module top (
                 tracker[0] <= 1'b1;
                 packet_data[0] <= {3'h0, ch0};
             end
-            if (ch1_sample)begin
+            if (ch2_sample)begin
                 tracker[1] <= 1'b1;
-                packet_data[1] <= {3'h1, ch1};
+                packet_data[1] <= {3'h1, ch2};
             end
             if (ch5_sample)begin
                 tracker[2] <= 1'b1;

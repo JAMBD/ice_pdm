@@ -35,8 +35,8 @@ def pdmSum(pdm_0, pdm_1, init_err=0.0):
 def pdmMult(pdm_0, pdm_1, init_err=0.0):
     pdm_sum = []
     err = init_err
-    acc_0 = [0]*5
-    acc_1 = [0]*5
+    acc_0 = [0]*10
+    acc_1 = [0]*10
     for i_0, i_1 in list(zip(pdm_0 - 0.5, pdm_1 - 0.5)):
         acc_0.append(i_0 * 2)
         acc_1.append(i_1 * 2)
@@ -72,6 +72,20 @@ def pdmft(pdm):
 
     return pdm_fft
 
+def genRndBits(l=16000):
+    shift_reg_bits = [False] * 24
+    data = []
+    for i in range(l):
+        nxt_bit = (shift_reg_bits[23]
+                   ^ shift_reg_bits[22]
+                   ^ shift_reg_bits[21]
+                   ^ shift_reg_bits[17]
+                   ^ True)
+        shift_reg_bits.insert(0, nxt_bit)
+        data.append(shift_reg_bits.pop(24))
+    return np.array(data)
+
+
 raw_data = 0.5 * np.sin(np.pi * np.linspace(0, 10, 16000))
 raw_data_2 = 0.3 * np.sin(np.pi * np.linspace(0, 31, 16000))
 raw_sum = raw_data * raw_data_2
@@ -100,4 +114,12 @@ pp.plot(raw_sum, linewidth=0.5)
 pp.subplot(n_plot, 1, 4)
 pp.plot(np.absolute(fft_raw_sum), linewidth=0.5)
 pp.plot(np.absolute(fft_sum), linewidth=0.5)
+pp.show()
+
+rnd_bits = genRndBits(32000)
+raw = pdmToRaw(rnd_bits)
+pp.subplot(2, 1, 1)
+pp.plot(raw)
+pp.subplot(2, 1, 2)
+pp.plot(np.abs(np.fft.rfft(raw)))
 pp.show()

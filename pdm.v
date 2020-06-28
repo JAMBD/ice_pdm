@@ -12,7 +12,26 @@ module pdm_clk_gen(
         counter <= counter + 7'h1;
     end
 endmodule
-    
+
+module pdm_rnd(
+    input clk,
+    input pdm_sample,
+    output rnd_data,
+    output reg data_valid);
+    reg [23:0] shift = 24'h000000;
+    assign rnd_data = shift[23];
+    assign nxt = shift[23] ^ shift[22] ^ shift[21] ^ shift[16] ^ 1'b1;
+    reg prev_sample = 1'b0;
+    always @(posedge clk) begin
+        data_valid <= 1'b0;
+        prev_sample <= pdm_sample;
+        if (pdm_sample && (!prev_sample)) begin
+            shift <= {shift[22:0], nxt};
+            data_valid <= 1'b1;
+        end
+    end
+endmodule
+
 module pdm_side_sync(
         input clk,
         input pdm_clk,

@@ -22,7 +22,8 @@ data = signal.lfilter(b, a, data, axis=0)
 plt.plot(data)
 plt.show()
 
-f,t,sxx = signal.spectrogram(data[::2, 0], 234375, np.hanning(512))
-plt.imshow(np.log10(sxx))
+for i in range(4):
+    f,t,sxx = signal.spectrogram(data[::2, i], 234375, np.hanning(512))
+    plt.imshow(np.log10(sxx))
+    plt.show()
 
-plt.show()
